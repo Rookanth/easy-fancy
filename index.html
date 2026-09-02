@@ -23,7 +23,7 @@
             <i class="fa-solid fa-desktop text-2xl text-indigo-400"></i>
             <div>
                 <h1 class="text-xl font-bold">EASY FANCY - Staff Terminal</h1>
-                <p class="text-xs text-slate-400">GitHub Pages Cloud Print Engine</p>
+                <p class="text-xs text-slate-400">GitHub Pages Multi-Page Print Engine</p>
             </div>
         </div>
         <div class="flex items-center gap-4">
@@ -35,9 +35,6 @@
     </header>
 
     <audio id="orderSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
-
-    <!-- Hidden Iframe for Direct Printing -->
-    <iframe id="printIframe" style="display:none; width:0; height:0; border:0;"></iframe>
 
     <!-- Orders Grid -->
     <div class="max-w-6xl mx-auto">
@@ -162,7 +159,7 @@
                 });
             });
 
-        // GITHUB PAGES BLOB PRINT ENGINE
+        // UNIVERSAL MULTI-PAGE DIRECT PRINT ENGINE
         async function autoPrintFile(fileUrl, btnElement) {
             const originalText = btnElement.innerHTML;
             btnElement.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Prep...`;
@@ -175,27 +172,52 @@
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
 
-                let iframe = document.getElementById('printIframe');
-                iframe.src = blobUrl;
+                let oldWrapper = document.getElementById('printWrapper');
+                if (oldWrapper) { oldWrapper.remove(); }
 
-                iframe.onload = function() {
-                    setTimeout(() => {
+                const printWrapper = document.createElement('div');
+                printWrapper.id = 'printWrapper';
+                printWrapper.style.position = 'fixed';
+                printWrapper.style.top = '0';
+                printWrapper.style.left = '0';
+                printWrapper.style.width = '0';
+                printWrapper.style.height = '0';
+                printWrapper.style.overflow = 'hidden';
+                printWrapper.style.zIndex = '-9999';
+
+                const embed = document.createElement('embed');
+                embed.src = blobUrl;
+                embed.type = 'application/pdf';
+                embed.style.width = '100%';
+                embed.style.height = '100%';
+
+                printWrapper.appendChild(embed);
+                document.body.appendChild(printWrapper);
+
+                setTimeout(() => {
+                    try {
+                        embed.focus();
+                        embed.print();
+                    } catch (err) {
                         try {
-                            iframe.contentWindow.focus();
-                            iframe.contentWindow.print();
-                        } catch (err) {
-                            console.error("Print Error:", err);
-                            window.open(fileUrl, '_blank');
-                        } finally {
-                            btnElement.innerHTML = originalText;
-                            btnElement.disabled = false;
-                            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                            window.frames[window.frames.length - 1].focus();
+                            window.frames[window.frames.length - 1].print();
+                        } catch (e) {
+                            window.open(blobUrl, '_blank');
                         }
-                    }, 300);
-                };
+                    } finally {
+                        btnElement.innerHTML = originalText;
+                        btnElement.disabled = false;
+                        
+                        setTimeout(() => {
+                            URL.revokeObjectURL(blobUrl);
+                            if (printWrapper) printWrapper.remove();
+                        }, 15000);
+                    }
+                }, 1000);
 
             } catch (err) {
-                console.error("Blob Print Catch Error:", err);
+                console.error("Print Error:", err);
                 window.open(fileUrl, '_blank');
                 btnElement.innerHTML = originalText;
                 btnElement.disabled = false;
