@@ -9,8 +9,8 @@
     
     <style>
         @keyframes pulse-border {
-            0%, 100% { border-color: #6366f1; }
-            50% { border-color: #10b981; }
+            0%, 100% { border-color: #6366f1; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+            50% { border-color: #10b981; box-shadow: 0 0 25px rgba(16, 185, 129, 0.6); }
         }
         .new-order-card { animation: pulse-border 2s infinite; }
     </style>
@@ -45,6 +45,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Hidden IFrame for Print & Image Preview -->
+    <iframe id="silentPrintFrame" style="display:none; width:0; height:0; border:0;"></iframe>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -82,14 +85,20 @@
                 if (!initialLoad && snapshot.docChanges().some(change => change.type === "added")) {
                     playNotificationSound();
                 }
+
+                const docsList = snapshot.docs;
+                const latestDocId = (!initialLoad && docsList.length > 0) ? docsList[0].id : null;
                 initialLoad = false;
 
                 container.innerHTML = '';
 
-                snapshot.forEach((doc) => {
+                docsList.forEach((doc) => {
                     const data = doc.data();
                     const orderId = doc.id;
                     const time = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'දැන්';
+
+                    const isNewest = (orderId === latestDocId);
+                    const cardHighlightClass = isNewest ? 'new-order-card bg-slate-800 border-indigo-500' : 'bg-slate-800/90 border-slate-700';
 
                     let filesHtml = '';
                     if(data.files && data.files.length > 0) {
@@ -112,7 +121,7 @@
                                         <p>පිටු ගණන: <span class="text-slate-200 font-medium">${f.pages}</span> | කොපි: <span class="text-slate-200 font-medium">${f.copies}</span></p>
                                     </div>
                                     <div class="grid grid-cols-2 gap-2">
-                                        <button onclick="autoPrintFile('${f.fileUrl}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-2 rounded flex items-center justify-center gap-1 transition">
+                                        <button onclick="handleFileAction('${f.fileUrl}', '${f.fileName}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 px-2 rounded flex items-center justify-center gap-1 transition">
                                             <i class="fa-solid fa-print"></i> Print
                                         </button>
                                         <button onclick="downloadFile('${f.fileUrl}', '${safeFileName}')" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold py-1.5 px-2 rounded flex items-center justify-center gap-1 transition text-center">
@@ -125,7 +134,7 @@
                     }
 
                     const cardHtml = `
-                        <div class="bg-slate-800 p-5 rounded-2xl border-2 border-slate-700 shadow-xl relative flex flex-col justify-between new-order-card">
+                        <div class="${cardHighlightClass} p-5 rounded-2xl border-2 shadow-xl relative flex flex-col justify-between">
                             <div>
                                 <div class="flex justify-between items-start mb-3 border-b border-slate-700 pb-2">
                                     <div>
@@ -134,7 +143,7 @@
                                         </h3>
                                         <span class="text-xs text-slate-400"><i class="fa-regular fa-clock"></i> ${time}</span>
                                     </div>
-                                    <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-2.5 py-1 rounded-full">New Order</span>
+                                    ${isNewest ? '<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-2.5 py-1 rounded-full animate-pulse">New Order</span>' : '<span class="bg-slate-700 text-slate-400 text-xs font-bold px-2.5 py-1 rounded-full">Old Order</span>'}
                                 </div>
 
                                 <div class="space-y-2 mb-4">
@@ -159,66 +168,97 @@
                 });
             });
 
-        // UNIVERSAL MULTI-PAGE DIRECT PRINT ENGINE
-        async function autoPrintFile(fileUrl, btnElement) {
+        // UNIFIED FILE ACTION (DOC DOWNLOAD, JPG & PDF PRINT PREVIEW)
+        async function handleFileAction(fileUrl, fileName, btnElement) {
+            const cleanName = (fileName || '').toLowerCase();
+            const cleanUrl = fileUrl.toLowerCase().split('?')[0];
+
+            // 1. Word / Excel Documents Check (Auto Download)
+            const isDoc = cleanName.endsWith('.doc') || cleanName.endsWith('.docx') || cleanName.endsWith('.xls') || cleanName.endsWith('.xlsx');
+            if (isDoc) {
+                downloadFile(fileUrl, encodeURIComponent(fileName));
+                return;
+            }
+
             const originalText = btnElement.innerHTML;
             btnElement.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Prep...`;
             btnElement.disabled = true;
 
             try {
-                const response = await fetch(fileUrl);
-                if (!response.ok) throw new Error('Fetch failed');
-                
-                const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
+                // 2. JPEG / PNG / WEBP Image Check (In-place Print Preview)
+                const isImage = cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.webp') ||
+                                cleanName.endsWith('.jpg') || cleanName.endsWith('.jpeg') || cleanName.endsWith('.png') || cleanName.endsWith('.webp');
 
-                let oldWrapper = document.getElementById('printWrapper');
-                if (oldWrapper) { oldWrapper.remove(); }
+                if (isImage) {
+                    const iframe = document.getElementById('silentPrintFrame');
+                    iframe.srcdoc = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                @page { size: A4 portrait; margin: 0; }
+                                body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: white; }
+                                img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="${fileUrl}" onload="setTimeout(() => { window.focus(); window.print(); }, 500);" />
+                        </body>
+                        </html>
+                    `;
+                } else {
+                    // 3. Multi-page PDF Direct Print Engine
+                    const response = await fetch(fileUrl);
+                    if (!response.ok) throw new Error('Fetch failed');
+                    
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
 
-                const printWrapper = document.createElement('div');
-                printWrapper.id = 'printWrapper';
-                printWrapper.style.position = 'fixed';
-                printWrapper.style.top = '0';
-                printWrapper.style.left = '0';
-                printWrapper.style.width = '0';
-                printWrapper.style.height = '0';
-                printWrapper.style.overflow = 'hidden';
-                printWrapper.style.zIndex = '-9999';
+                    let oldWrapper = document.getElementById('printWrapper');
+                    if (oldWrapper) { oldWrapper.remove(); }
 
-                const embed = document.createElement('embed');
-                embed.src = blobUrl;
-                embed.type = 'application/pdf';
-                embed.style.width = '100%';
-                embed.style.height = '100%';
+                    const printWrapper = document.createElement('div');
+                    printWrapper.id = 'printWrapper';
+                    printWrapper.style.position = 'fixed';
+                    printWrapper.style.top = '0';
+                    printWrapper.style.left = '0';
+                    printWrapper.style.width = '0';
+                    printWrapper.style.height = '0';
+                    printWrapper.style.overflow = 'hidden';
+                    printWrapper.style.zIndex = '-9999';
 
-                printWrapper.appendChild(embed);
-                document.body.appendChild(printWrapper);
+                    const embed = document.createElement('embed');
+                    embed.src = blobUrl;
+                    embed.type = 'application/pdf';
+                    embed.style.width = '100%';
+                    embed.style.height = '100%';
 
-                setTimeout(() => {
-                    try {
-                        embed.focus();
-                        embed.print();
-                    } catch (err) {
+                    printWrapper.appendChild(embed);
+                    document.body.appendChild(printWrapper);
+
+                    setTimeout(() => {
                         try {
-                            window.frames[window.frames.length - 1].focus();
-                            window.frames[window.frames.length - 1].print();
-                        } catch (e) {
-                            window.open(blobUrl, '_blank');
+                            embed.focus();
+                            embed.print();
+                        } catch (err) {
+                            try {
+                                window.frames[window.frames.length - 1].focus();
+                                window.frames[window.frames.length - 1].print();
+                            } catch (e) {
+                                window.open(blobUrl, '_blank');
+                            }
+                        } finally {
+                            setTimeout(() => {
+                                URL.revokeObjectURL(blobUrl);
+                                if (printWrapper) printWrapper.remove();
+                            }, 15000);
                         }
-                    } finally {
-                        btnElement.innerHTML = originalText;
-                        btnElement.disabled = false;
-                        
-                        setTimeout(() => {
-                            URL.revokeObjectURL(blobUrl);
-                            if (printWrapper) printWrapper.remove();
-                        }, 15000);
-                    }
-                }, 1000);
-
+                    }, 1000);
+                }
             } catch (err) {
                 console.error("Print Error:", err);
                 window.open(fileUrl, '_blank');
+            } finally {
                 btnElement.innerHTML = originalText;
                 btnElement.disabled = false;
             }
