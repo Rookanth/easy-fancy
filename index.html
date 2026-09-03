@@ -3,115 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart QR Print Portal</title>
+    <title>EASY FANCY - Print Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PDF.js for reading pages -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 pb-10">
+<body class="bg-slate-100 min-h-screen text-slate-800 pb-20">
 
-    <header class="bg-indigo-600 text-white p-4 shadow-md text-center">
-        <h1 class="text-2xl font-bold"><i class="fa-solid fa-print mr-2"></i>EASY FANCY QR Print Portal</h1>
-        <p class="text-xs text-indigo-200 mt-1">ඔබගේ Files පහසුවෙන් Upload කර Print Order එක යවන්න</p>
+    <header class="bg-blue-600 text-white p-4 shadow-md text-center">
+        <h1 class="text-xl font-bold"><i class="fa-solid fa-store mr-2"></i>EASY FANCY - Print Portal</h1>
+        <p class="text-xs text-blue-100 mt-1">ඔබේ ලේඛන පහසුවෙන් මුද්‍රණය කරගන්න</p>
     </header>
 
-    <div class="max-w-md mx-auto mt-6 p-4">
-        
-        <div id="successCard" class="hidden bg-emerald-50 border border-emerald-200 p-5 rounded-2xl mb-6 text-center shadow-sm">
-            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl">
-                <i class="fa-solid fa-check"></i>
+    <div class="max-w-xl mx-auto p-4 mt-4">
+        <!-- File Upload Box -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center mb-6">
+            <input type="file" id="fileInput" multiple class="hidden" onchange="handleFiles(this.files)">
+            <label for="fileInput" class="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed border-blue-300 rounded-xl p-6 bg-blue-50/50 hover:bg-blue-50 transition">
+                <i class="fa-solid fa-cloud-arrow-up text-3xl text-blue-600 mb-2"></i>
+                <span class="font-bold text-slate-700 text-sm">פයිල්ස් මෙතැනට Upload කරන්න</span>
+                <span class="text-xs text-slate-400 mt-1">PDF, Word, Images (Multiple files allowed)</span>
+            </label>
+        </div>
+
+        <!-- Files List Container -->
+        <div id="fileList" class="space-y-4 mb-6"></div>
+
+        <!-- Order Summary & Checkout -->
+        <div id="orderSummary" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hidden">
+            <h3 class="font-bold text-slate-800 mb-3 text-sm border-b pb-2">මිල ගණන් සාරාංශය</h3>
+            <div id="pricingDetails" class="space-y-2 text-xs text-slate-600 mb-4"></div>
+            <div class="flex justify-between items-center font-bold text-base text-slate-800 border-t pt-3 mb-4">
+                <span>මුළු මුදල:</span>
+                <span id="totalPrice" class="text-blue-600">Rs. 0.00</span>
             </div>
-            <h2 class="text-lg font-bold text-emerald-800">Order එක සාර්ථකව යැවුණි!</h2>
-            <p class="text-xs text-emerald-600 mt-1 mb-4">Print කර අවසන් වූ පසු ඔබගේ Privacy එක උදෙසා Files මකා දැමිය හැක.</p>
             
-            <div id="sentFilesList" class="space-y-2 text-left mb-4"></div>
+            <div class="mb-4">
+                <input type="text" id="customerName" placeholder="ඔබේ නම හෝ දුරකථන අංකය" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-blue-500">
+            </div>
 
-            <button onclick="resetPortal()" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-lg text-sm transition">
-                <i class="fa-solid fa-plus mr-1"></i> තවත් Order එකක් යවන්න
+            <button onclick="submitOrder()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition shadow-sm">
+                ඇණවුම යොමු කරන්න (Submit Order)
             </button>
         </div>
-
-        <div id="mainForm">
-            <div class="bg-white p-4 rounded-xl shadow-sm mb-4 border border-slate-200">
-                <label class="block text-sm font-semibold text-slate-700 mb-1">ඔබගේ නම (Customer Name):</label>
-                <input type="text" id="custName" placeholder="උදා: Kamal Perera" class="w-full p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
-
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center mb-4">
-                <i class="fa-solid fa-cloud-arrow-up text-4xl text-indigo-500 mb-2"></i>
-                <h2 class="font-semibold text-slate-700">Files මෙතැනට තෝරන්න</h2>
-                <p class="text-xs text-slate-400 mb-3">(PDF, Word, Excel, Image ඇතුළු ඕනෑම File එකක්)</p>
-                
-                <input type="file" id="fileInput" multiple accept="*" class="hidden" onchange="handleFiles(this.files)">
-                <button onclick="document.getElementById('fileInput').click()" class="bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-4 py-2 rounded-lg hover:bg-indigo-100 transition">
-                    <i class="fa-solid fa-folder-open mr-1"></i> File එක තෝරන්න
-                </button>
-            </div>
-
-            <div id="fileListContainer" class="space-y-3 mb-4"></div>
-
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 text-center">
-                <div class="flex justify-between items-center">
-                    <span class="font-bold text-slate-700">මුළු එකතුව (Grand Total):</span>
-                    <span id="grandTotal" class="text-xl font-extrabold text-indigo-600">Rs. 0.00</span>
-                </div>
-                <p class="text-[11px] text-amber-600 font-medium mt-2 pt-2 border-t border-slate-100 flex items-center justify-center gap-1">
-                    <i class="fa-solid fa-circle-info"></i> මුද්‍රණය අනුව මිල වෙනස් වේ (Rates depend on the print type/quality.)
-                </p>
-            </div>
-
-            <button id="submitBtn" onclick="submitOrderToFirebase()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-lg">
-                <i class="fa-solid fa-paper-plane"></i> Print Order එක Send කරන්න
-            </button>
-        </div>
-
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-
     <script>
-        // PDF.js worker setup
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
-        // Cloudinary Details
-        const CLOUDINARY_CLOUD_NAME = "cyhk4bqg"; 
-        const CLOUDINARY_PRESET = "omgzhyud"; 
-
-        // Firebase Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDWixaMl2Nv3Unuh6aHLqPsxq8JGMYIKCM",
-            authDomain: "qr-scan-71b36.firebaseapp.com",
-            projectId: "qr-scan-71b36",
-            storageBucket: "qr-scan-71b36.firebasestorage.app",
-            messagingSenderId: "178069792666",
-            appId: "1:178069792666:web:34c5f9e3719fc5464ebc23",
-            measurementId: "G-QXRR7ESTD4"
-        };
-
-        // Initialize Firebase
-        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-        const db = firebase.firestore();
+        const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME"; // ඔබේ ක්ලවුඩ් නේම් එක මෙහි දමන්න
+        const CLOUDINARY_PRESET = "YOUR_UPLOAD_PRESET"; // ඔබේ ප්‍රෙසට් එක මෙහි දමන්න
 
         let uploadedFiles = [];
 
         async function handleFiles(files) {
             for (let f of files) {
                 let pageCount = 1;
-                if (f.type === "application/pdf") {
+                const fileName = f.name || "";
+                const isPdfByExt = /\.pdf$/i.test(fileName);
+                const isPdfMime = f.type === 'application/pdf';
+
+                if (isPdfByExt || isPdfMime) {
                     try {
                         let arrayBuffer = await f.arrayBuffer();
                         let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                         pageCount = pdf.numPages;
                     } catch (e) {
-                        console.error("Error reading PDF pages:", e);
+                        console.warn("PDF page count read failed, defaulting to 1:", e);
+                        pageCount = 1;
                     }
                 }
 
                 uploadedFiles.push({
                     id: Date.now() + Math.random(),
                     fileObject: f,
-                    name: f.name,
+                    name: fileName,
                     pages: pageCount,
                     printType: 'bw', 
                     sideType: 'single', 
@@ -122,97 +90,88 @@
         }
 
         function renderFileList() {
-            const container = document.getElementById('fileListContainer');
-            container.innerHTML = '';
+            const listEl = document.getElementById('fileList');
+            const summaryEl = document.getElementById('orderSummary');
+            listEl.innerHTML = '';
 
-            uploadedFiles.forEach((f, idx) => {
-                const subTotal = calculateFileSubtotal(f);
-                const html = `
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative">
-                    <button onclick="removeFile(${idx})" class="absolute top-3 right-3 text-red-400 hover:text-red-600">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
-                    <h3 class="font-bold text-slate-800 text-sm truncate pr-8 mb-2">${f.name}</h3>
-                    
-                    <div class="grid grid-cols-2 gap-2 text-xs mb-3">
-                        <div>
-                            <label class="block font-medium text-slate-500 mb-1">වර්ගය (Type):</label>
-                            <select onchange="updateFileSetting(${idx}, 'printType', this.value)" class="w-full p-2 border border-slate-300 rounded-lg">
-                                <option value="bw" ${f.printType === 'bw' ? 'selected' : ''}>Black & White (Rs. 10)</option>
-                                <option value="color" ${f.printType === 'color' ? 'selected' : ''}>Full Color (Rs. 50 per page)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-500 mb-1">පිටු පැති (Sides):</label>
-                            <select onchange="updateFileSetting(${idx}, 'sideType', this.value)" class="w-full p-2 border border-slate-300 rounded-lg">
-                                <option value="single" ${f.sideType === 'single' ? 'selected' : ''}>Single Side</option>
-                                <option value="double" ${f.sideType === 'double' ? 'selected' : ''}>Double Side (Front/Back)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 text-xs mb-3">
-                        <div>
-                            <label class="block font-medium text-slate-500 mb-1">පිටු ගණන (Pages):</label>
-                            <input type="number" value="${f.pages}" min="1" onchange="updateFileSetting(${idx}, 'pages', parseInt(this.value) || 1)" class="w-full p-2 border border-slate-300 rounded-lg">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-500 mb-1">කොපි ගණන (Copies):</label>
-                            <input type="number" value="${f.copies}" min="1" onchange="updateFileSetting(${idx}, 'copies', parseInt(this.value) || 1)" class="w-full p-2 border border-slate-300 rounded-lg">
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center text-xs pt-2 border-t border-slate-100">
-                        <span class="text-slate-500">මෙම File එකට ගාන: <strong class="text-indigo-600">Rs. ${subTotal.toFixed(2)}</strong></span>
-                    </div>
-                </div>
-                `;
-                container.innerHTML += html;
-            });
-
-            document.getElementById('grandTotal').innerText = `Rs. ${calculateGrandTotal().toFixed(2)}`;
-        }
-
-        function calculateFileSubtotal(f) {
-            let totalCost = 0;
-
-            if (f.printType === 'bw') {
-                // BW: කොළ ගණන මත පදනම් වේ (Double Side නම් පිටු 2කට 1 කොළය බැවින් කොළ ගණන අඩුවේ)
-                let sheets = f.pages;
-                if (f.sideType === 'double') {
-                    sheets = Math.ceil(f.pages / 2);
-                }
-                totalCost = sheets * 10;
-            } else if (f.printType === 'color') {
-                // Color: Single හෝ Double කුමන වුවත් මුළු පිටු ගණනම එකම ලෙස සලකා පිටුවකට Rs. 50 බැගින් අය වේ.
-                totalCost = f.pages * 50;
+            if (uploadedFiles.length === 0) {
+                summaryEl.classList.add('hidden');
+                return;
             }
 
-            // කොපි (Copies) ගණනින් ගුණ කිරීම
-            return totalCost * f.copies;
+            summaryEl.classList.remove('hidden');
+
+            uploadedFiles.forEach((item, index) => {
+                listEl.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="font-bold text-slate-700 truncate w-3/4"><i class="fa-solid fa-file-lines text-blue-500 mr-1"></i> ${item.name}</span>
+                            <button onclick="removeFile(${index})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-3">
+                            <div>
+                                <label class="text-slate-400 block mb-1">Print Type</label>
+                                <select onchange="updateFileProp(${index}, 'printType', this.value)" class="w-full border rounded-lg p-1.5 bg-slate-50">
+                                    <option value="bw" ${item.printType==='bw'?'selected':''}>B/W (Rs. 10/sheet)</option>
+                                    <option value="color" ${item.printType==='color'?'selected':''}>Color (Rs. 50/page)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-slate-400 block mb-1">Sides</label>
+                                <select onchange="updateFileProp(${index}, 'sideType', this.value)" class="w-full border rounded-lg p-1.5 bg-slate-50">
+                                    <option value="single" ${item.sideType==='single'?'selected':''}>Single Side</option>
+                                    <option value="double" ${item.sideType==='double'?'selected':''}>Double Side</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            calculateTotal();
         }
 
-        function calculateGrandTotal() {
-            return uploadedFiles.reduce((sum, f) => sum + calculateFileSubtotal(f), 0);
+        function updateFileProp(index, prop, val) {
+            uploadedFiles[index][prop] = val;
+            calculateTotal();
         }
 
-        function updateFileSetting(idx, key, value) {
-            uploadedFiles[idx][key] = value;
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
             renderFileList();
         }
 
-        function removeFile(idx) {
-            uploadedFiles.splice(idx, 1);
-            renderFileList();
+        function calculateTotal() {
+            let total = 0;
+            let detailsHtml = '';
+
+            uploadedFiles.forEach(item => {
+                let cost = 0;
+                let pages = item.pages || 1;
+                
+                if (item.printType === 'bw') {
+                    let sheets = item.sideType === 'double' ? Math.ceil(pages / 2) : pages;
+                    cost = sheets * 10 * item.copies;
+                    detailsHtml += `<div>${item.name} (B/W - ${sheets} sheets): Rs. ${cost}</div>`;
+                } else {
+                    cost = pages * 50 * item.copies;
+                    detailsHtml += `<div>${item.name} (Color - ${pages} pages): Rs. ${cost}</div>`;
+                }
+                total += cost;
+            });
+
+            document.getElementById('pricingDetails').innerHTML = detailsHtml || '<div>ෆයිල් එකක් තෝරන්න</div>';
+            document.getElementById('totalPrice').innerText = `Rs. ${total}.00`;
         }
 
-        // Upload Single File to Cloudinary
         async function uploadSingleFileToCloudinary(fileObj) {
-            const isImageByExt = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileObj.name);
-            const isImageMime = fileObj.type.startsWith('image/');
+            const fileName = fileObj.name || "";
+            const isPdfByExt = /\.pdf$/i.test(fileName);
+            const isImageByExt = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
+            
+            const isImageMime = fileObj.type && fileObj.type.startsWith('image/');
             const isImage = isImageByExt || isImageMime;
-
             const primaryType = isImage ? 'image' : 'raw';
+            
             const formData = new FormData();
             formData.append('file', fileObj);
             formData.append('upload_preset', CLOUDINARY_PRESET);
@@ -228,7 +187,7 @@
                 console.warn(`Primary upload failed, trying fallback...`, e);
             }
 
-            const fallbackType = isImage ? 'raw' : 'image';
+            const fallbackType = primaryType === 'image' ? 'raw' : 'image';
             const fallbackData = new FormData();
             fallbackData.append('file', fileObj);
             fallbackData.append('upload_preset', CLOUDINARY_PRESET);
@@ -240,96 +199,23 @@
             const dataFallback = await resFallback.json();
             
             if (!dataFallback.secure_url) {
-                throw new Error(`${fileObj.name} Upload කිරීමට නොහැකි විය.`);
+                throw new Error(`${fileObj.name || "File"} Upload කිරීමට නොහැකි විය.`);
             }
             return dataFallback.secure_url;
         }
 
-        // Submit All Orders Together
-        async function submitOrderToFirebase() {
-            const custName = document.getElementById('custName').value.trim() || 'Customer';
-            if (uploadedFiles.length === 0) { alert('කරුණාකර Files Upload කරන්න!'); return; }
-
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Upload වෙමින් පවතී...`;
-
-            try {
-                const fileDataArray = [];
-                for (let f of uploadedFiles) {
-                    const fileUrl = await uploadSingleFileToCloudinary(f.fileObject);
-                    fileDataArray.push({
-                        fileName: f.name,
-                        fileUrl: fileUrl,
-                        printType: f.printType === 'bw' ? 'Black & White' : 'Color',
-                        sideType: f.sideType === 'single' ? 'Single Side' : 'Double Side',
-                        pages: f.pages,
-                        copies: f.copies,
-                        subTotal: calculateFileSubtotal(f)
-                    });
-                }
-
-                const docRef = await db.collection("orders").add({
-                    customerName: custName,
-                    files: fileDataArray,
-                    grandTotal: calculateGrandTotal(),
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                // Show Success & Deletion Screen
-                showSuccessScreen(docRef.id, fileDataArray);
-
-            } catch (error) {
-                alert('යැවීමට නොහැකි විය: ' + error.message);
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> නැවත උත්සාහ කරන්න`;
+        async function submitOrder() {
+            if (uploadedFiles.length === 0) {
+                alert("කරුණාකර අවම වශයෙන් එක ෆයිල් එකක්වත් Upload කරන්න.");
+                return;
             }
-        }
-
-        function showSuccessScreen(docId, files) {
-            document.getElementById('mainForm').classList.add('hidden');
-            const successCard = document.getElementById('successCard');
-            const sentFilesList = document.getElementById('sentFilesList');
-            
-            successCard.classList.remove('hidden');
-            sentFilesList.innerHTML = '';
-
-            files.forEach((f, idx) => {
-                sentFilesList.innerHTML += `
-                    <div id="file-item-${idx}" class="bg-white p-3 rounded-lg border border-emerald-200 flex justify-between items-center text-xs">
-                        <span class="font-semibold text-slate-700 truncate max-w-[180px]">${f.fileName}</span>
-                        <button onclick="deleteCustomerOrder('${docId}', ${idx})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1">
-                            <i class="fa-solid fa-trash-can"></i> Delete
-                        </button>
-                    </div>
-                `;
-            });
-        }
-
-        async function deleteCustomerOrder(docId, idx) {
-            if (confirm("ඔබට මෙම File එක පද්ධතියෙන් මකා දැමීමට අවශ්‍යද?")) {
-                try {
-                    await db.collection("orders").doc(docId).delete();
-                    const elem = document.getElementById(`file-item-${idx}`);
-                    if (elem) {
-                        elem.innerHTML = `<span class="text-xs text-red-500 font-semibold"><i class="fa-solid fa-check mr-1"></i> File එක සාර්ථකව මකා දැමීය!</span>`;
-                    }
-                } catch (e) {
-                    alert("Delete කිරීමට නොහැකි විය: " + e.message);
-                }
+            const name = document.getElementById('customerName').value.trim();
+            if (!name) {
+                alert("කරුණාකර ඔබේ නම හෝ දුරකථන අංකය ඇතුළත් කරන්න.");
+                return;
             }
-        }
 
-        function resetPortal() {
-            uploadedFiles = [];
-            document.getElementById('fileListContainer').innerHTML = '';
-            document.getElementById('custName').value = '';
-            document.getElementById('grandTotal').innerText = 'Rs. 0.00';
-            document.getElementById('mainForm').classList.remove('hidden');
-            document.getElementById('successCard').classList.add('hidden');
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = false;
-            btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Print Order එක Send කරන්න`;
+            alert("ඇණවුම සකස් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න...");
         }
     </script>
 </body>
