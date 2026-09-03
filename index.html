@@ -105,11 +105,12 @@
                 if (isPdfByExt || isPdfMime) {
                     try {
                         let arrayBuffer = await f.arrayBuffer();
-                        let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        pageCount = pdf.numPages;
+                        let loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                        let pdf = await loadingTask.promise;
+                        pageCount = pdf.numPages || 1;
                     } catch (e) {
-                        console.warn("Error reading PDF pages, defaulting to 1:", e);
-                        pageCount = 1;
+                        console.warn("Samsung Mobile PDF Read Warning, defaulting to 1 page:", e);
+                        pageCount = 1; 
                     }
                 }
 
@@ -208,12 +209,9 @@
             renderFileList();
         }
 
-        // Fixed Upload Single File to Cloudinary with Samsung/Mobile Fallback
         async function uploadSingleFileToCloudinary(fileObj) {
             const fileName = fileObj.name || "";
-            const isPdfByExt = /\.pdf$/i.test(fileName);
             const isImageByExt = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
-            
             const isImageMime = fileObj.type && fileObj.type.startsWith('image/');
             const isImage = isImageByExt || isImageMime;
 
@@ -250,7 +248,6 @@
             return dataFallback.secure_url;
         }
 
-        // Submit All Orders Together
         async function submitOrderToFirebase() {
             const custName = document.getElementById('custName').value.trim() || 'Customer';
             if (uploadedFiles.length === 0) { alert('කරුණාකර Files Upload කරන්න!'); return; }
