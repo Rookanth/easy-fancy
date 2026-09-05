@@ -40,7 +40,7 @@
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center mb-4">
                 <i class="fa-solid fa-cloud-arrow-up text-4xl text-indigo-500 mb-2"></i>
                 <h2 class="font-semibold text-slate-700">Files මෙතැනට තෝරන්න</h2>
-                <p class="text-xs text-slate-400 mb-3">(ලොකු PDF, Word, Excel, Image ඇතුළු ඕනෑම File එකක්)</p>
+                <p class="text-xs text-slate-400 mb-3">(PDF, Word, Excel, Image ඇතුළු ඕනෑම File එකක්)</p>
                 
                 <input type="file" id="fileInput" multiple accept="*" class="hidden" onchange="handleFiles(this.files)">
                 <button onclick="document.getElementById('fileInput').click()" class="bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold px-4 py-2 rounded-lg hover:bg-indigo-100 transition">
@@ -67,14 +67,16 @@
 
     </div>
 
-    <!-- Firebase App & Firestore & Storage Scripts -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
     <script>
         // PDF.js worker setup
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        // Cloudinary Details
+        const CLOUDINARY_CLOUD_NAME = "cyhk4bqg"; 
+        const CLOUDINARY_PRESET = "omgzhyud"; 
 
         // Firebase Configuration
         const firebaseConfig = {
@@ -90,27 +92,32 @@
         // Initialize Firebase
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
-        const storage = firebase.storage();
 
         let uploadedFiles = [];
 
         async function handleFiles(files) {
             for (let f of files) {
                 let pageCount = 1;
-                if (f.type === "application/pdf") {
+                const fileName = f.name || "";
+                const isPdfByExt = /\.pdf$/i.test(fileName);
+                const isPdfMime = f.type === 'application/pdf';
+
+                if (isPdfByExt || isPdfMime) {
                     try {
                         let arrayBuffer = await f.arrayBuffer();
-                        let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        pageCount = pdf.numPages;
+                        let loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                        let pdf = await loadingTask.promise;
+                        pageCount = pdf.numPages || 1;
                     } catch (e) {
-                        console.error("Error reading PDF pages:", e);
+                        console.warn("Samsung Mobile PDF Read Warning, defaulting to 1 page:", e);
+                        pageCount = 1; 
                     }
                 }
 
                 uploadedFiles.push({
                     id: Date.now() + Math.random(),
                     fileObject: f,
-                    name: f.name,
+                    name: fileName,
                     pages: pageCount,
                     printType: 'bw', 
                     sideType: 'single', 
@@ -202,29 +209,57 @@
             renderFileList();
         }
 
-        // Upload Single File to Firebase Storage (No 10MB Limit Issues)
-        async function uploadSingleFileToFirebaseStorage(fileObj) {
-            const safeName = Date.now() + "_" + fileObj.name.replace(/[^a-zA-Z0-9_.-]/g, "_");
-            const storageRef = storage.ref().child(`print_files/${safeName}`);
+        async function uploadSingleFileToCloudinary(fileObj) {
+            const fileName = fileObj.name || "";
+            const isImageByExt = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
+            const isImageMime = fileObj.type && fileObj.type.startsWith('image/');
+            const isImage = isImageByExt || isImageMime;
+
+            const primaryType = isImage ? 'image' : 'raw';
+            const formData = new FormData();
+            formData.append('file', fileObj);
+            formData.append('upload_preset', CLOUDINARY_PRESET);
+
+            try {
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${primaryType}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.secure_url) return data.secure_url;
+            } catch (e) {
+                console.warn(`Primary upload failed, trying fallback...`, e);
+            }
+
+            const fallbackType = primaryType === 'image' ? 'raw' : 'image';
+            const fallbackData = new FormData();
+            fallbackData.append('file', fileObj);
+            fallbackData.append('upload_preset', CLOUDINARY_PRESET);
+
+            const resFallback = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${fallbackType}/upload`, {
+                method: 'POST',
+                body: fallbackData
+            });
+            const dataFallback = await resFallback.json();
             
-            const snapshot = await storageRef.put(fileObj);
-            const downloadURL = await snapshot.ref.getDownloadURL();
-            return downloadURL;
+            if (!dataFallback.secure_url) {
+                throw new Error(`${fileObj.name || "File"} Upload කිරීමට නොහැකි විය.`);
+            }
+            return dataFallback.secure_url;
         }
 
-        // Submit All Orders Together
         async function submitOrderToFirebase() {
             const custName = document.getElementById('custName').value.trim() || 'Customer';
             if (uploadedFiles.length === 0) { alert('කරුණාකර Files Upload කරන්න!'); return; }
 
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> ලොකු Files Upload වෙමින් පවතී...`;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Upload වෙමින් පවතී...`;
 
             try {
                 const fileDataArray = [];
                 for (let f of uploadedFiles) {
-                    const fileUrl = await uploadSingleFileToFirebaseStorage(f.fileObject);
+                    const fileUrl = await uploadSingleFileToCloudinary(f.fileObject);
                     fileDataArray.push({
                         fileName: f.name,
                         fileUrl: fileUrl,
@@ -248,7 +283,7 @@
             } catch (error) {
                 alert('යැවීමට නොහැකි විය: ' + error.message);
                 btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> නැවත උත්සාහ කරන්න`;
+                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Print Order එක Send කරන්න`;
             }
         }
 
